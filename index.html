@@ -1,0 +1,1184 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Avatar Lipsync Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/MediaRecorder/0.1.0/MediaRecorder.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        #videoCanvas {
+            width: 100%;
+            max-width: 512px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            width: 100%;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #text_input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #text_input:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .status.connected {
+            background-color: #e6f4ea;
+            color: #137333;
+        }
+
+        .status.disconnected {
+            background-color: #fce8e6;
+            color: #c5221f;
+        }
+
+        #audioPlayer {
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+        }
+
+        .record-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #dc3545;
+        }
+
+        .record-button.recording {
+            background-color: #28a745;
+        }
+
+        .record-status {
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        .input-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-btn {
+            background-color: #e0e0e0;
+            color: #666;
+        }
+
+        .toggle-btn.active {
+            background-color: #1a73e8;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Avatar Lipsync Demo</h1>
+        
+        <div class="video-container">
+            <canvas id="videoCanvas" width="512" height="512"></canvas>
+            <div id="loading" class="loading">Generating response...</div>
+        </div>
+
+        <audio id="audioPlayer" controls></audio>
+
+        <div class="controls">
+            <div class="input-toggle">
+                <button id="textModeBtn" class="toggle-btn active">Text Input</button>
+                <button id="voiceModeBtn" class="toggle-btn">Voice Input</button>
+            </div>
+
+            <div id="textInputGroup" class="input-group">
+                <input type="text" id="text_input" placeholder="Type your message and press Enter">
+                <button id="sendButton">Send</button>
+            </div>
+
+            <div id="voiceInputGroup" class="input-group" style="display: none;">
+                <button id="recordButton" class="record-button">
+                    Start Recording
+                </button>
+                <div id="recordStatus" class="record-status"></div>
+            </div>
+        </div>
+
+        <div id="connectionStatus" class="status">Connecting...</div>
+    </div>
+    <script>
+        class LipSyncPlayer {
+            constructor() {
+                this.socket = null;
+                this.videoCanvas = document.getElementById('videoCanvas');
+                this.audioPlayer = document.getElementById('audioPlayer');
+                this.textInput = document.getElementById('text_input');
+                this.sendButton = document.getElementById('sendButton');
+                this.loadingIndicator = document.getElementById('loading');
+                this.statusElement = document.getElementById('connectionStatus');
+                this.recordButton = document.getElementById('recordButton');
+                this.recordStatus = document.getElementById('recordStatus');
+                this.textModeBtn = document.getElementById('textModeBtn');
+                this.voiceModeBtn = document.getElementById('voiceModeBtn');
+                this.textInputGroup = document.getElementById('textInputGroup');
+                this.voiceInputGroup = document.getElementById('voiceInputGroup');
+
+                this.frameQueue = [];
+                this.recordedFrames = [];
+                this.mediaRecorder = null;
+                this.recordedChunks = [];
+                this.isPlaying = false;
+                this.isLastFrameReceived = false;
+                this.startTime = null;
+                this.animationFrameId = null;
+                this.totalFramesReceived = 0;
+                this.totalFramesRendered = 0;
+                this.audioReady = false;
+                this.hasFirstFrame = false;
+                this.isRecording = false;
+                
+                console.log("[Init] LipSyncPlayer initialized");
+                this.initializeWebSocket();
+                this.setupEventListeners();
+                this.setupVoiceRecording();
+            }
+
+            setupVoiceRecording() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    console.error("[Voice] Media devices not supported");
+                    this.recordButton.disabled = true;
+                    this.recordStatus.textContent = "Voice recording not supported in this browser";
+                    return;
+                }
+
+                this.recordButton.addEventListener('click', () => {
+                    if (this.isRecording) {
+                        this.stopRecording();
+                    } else {
+                        this.startRecording();
+                    }
+                });
+            }
+
+            async startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.recordedChunks = [];
+
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.recordedChunks.push(event.data);
+                        }
+                    };
+
+                    this.mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(this.recordedChunks, { type: 'audio/wav' });
+                        await this.sendVoiceToBackend(audioBlob);
+                        
+                        // Stop all tracks in the stream
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    this.mediaRecorder.start();
+                    this.isRecording = true;
+                    this.recordButton.textContent = "Stop Recording";
+                    this.recordButton.classList.add('recording');
+                    this.recordStatus.textContent = "Recording...";
+
+                } catch (error) {
+                    console.error("[Voice] Error starting recording:", error);
+                    this.recordStatus.textContent = "Error starting recording";
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.recordButton.textContent = "Start Recording";
+                    this.recordButton.classList.remove('recording');
+                    this.recordStatus.textContent = "Processing...";
+                }
+            }
+
+            async sendVoiceToBackend(audioBlob) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', audioBlob);
+
+                    const response = await fetch('https://api.lifeguruai.com/api/VoiceToTxt', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': 'Bearer 875d688653a74867891e2037d855cfd607df6bd9'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Transcription failed');
+                    }
+
+                    const data = await response.json();
+                    console.log("Audio to text: ", data)
+                    if (data.converted_text) {
+                        this.sendMessage(
+                            {
+                                text: data.converted_text.text,
+                                id: data.id 
+                            }
+                        )
+                        this.recordStatus.textContent = "Sent successfully";
+                    } else {
+                        throw new Error('No transcription received');
+                    }
+
+                } catch (error) {
+                    console.error("[Voice] Error sending voice data:", error);
+                    this.recordStatus.textContent = "Error processing voice input";
+                }
+            }
+
+            initializeWebSocket() {
+                this.socket = new WebSocket("wss://y06nue7c0klxp9-8001.proxy.runpod.net/ws/875d688653a74867891e2037d855cfd607df6bd9");
+                
+                this.socket.onopen = () => {
+                    console.log("[WebSocket] Connected");
+                    this.statusElement.textContent = "Connected";
+                    this.statusElement.className = "status connected";
+                };
+
+                this.socket.onclose = () => {
+                    console.log("[WebSocket] Disconnected");
+                    this.statusElement.textContent = "Disconnected";
+                    this.statusElement.className = "status disconnected";
+                };
+
+                this.socket.onerror = (error) => {
+                    console.error("[WebSocket] Error:", error);
+                    this.statusElement.textContent = "Connection Error";
+                    this.statusElement.className = "status disconnected";
+                };
+
+                this.socket.onmessage = this.handleMessage.bind(this);
+            }
+
+            setupEventListeners() {
+                this.textInput.addEventListener("keypress", (event) => {
+                    if (event.key === "Enter") {
+                        this.sendMessage(
+                            {
+                                text: this.textInput.value.trim()
+                            }
+                        );
+                    }
+                });
+
+                this.sendButton.addEventListener("click", () => {
+                    this.sendMessage(
+                            {
+                                text: this.textInput.value.trim()
+                            }
+                        );
+                });
+
+                this.textModeBtn.addEventListener("click", () => {
+                    this.textModeBtn.classList.add('active');
+                    this.voiceModeBtn.classList.remove('active');
+                    this.textInputGroup.style.display = 'flex';
+                    this.voiceInputGroup.style.display = 'none';
+                });
+
+                this.voiceModeBtn.addEventListener("click", () => {
+                    this.textModeBtn.classList.remove('active');
+                    this.voiceModeBtn.classList.add('active');
+                    this.textInputGroup.style.display = 'none';
+                    this.voiceInputGroup.style.display = 'flex';
+                });
+
+                this.audioPlayer.addEventListener('play', () => {
+                    console.log("[Audio] Playback started");
+                    this.isPlaying = true;
+                    this.renderFrames();
+                });
+
+                this.audioPlayer.addEventListener('pause', () => {
+                    console.log("[Audio] Playback paused");
+                    this.isPlaying = false;
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                });
+
+                this.audioPlayer.addEventListener('ended', () => {
+                    console.log("[Audio] Playback ended");
+                    this.isPlaying = false;
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                });
+            }
+
+            sendMessage(data) {
+                if (data && this.socket.readyState === WebSocket.OPEN) {
+                    console.log("[Send] Sending message:", data);
+                    this.loadingIndicator.style.display = 'block';
+                    this.frameQueue = [];
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                    this.socket.send(JSON.stringify({ data: data }));
+                    this.textInput.value = '';
+                }
+            }
+
+            async handleMessage(event) {
+                try {
+                    const message = JSON.parse(event.data);
+                    console.log("[WebSocket] Received message type:", message.type);
+                    
+                    switch (message.type) {
+                        case 'audio':
+                            console.log("[Audio] Received audio data");
+                            await this.handleAudio(message.data);
+                            this.socket.send('audio_ready');
+                            break;
+                            
+                        case 'frame':
+                            this.totalFramesReceived++;
+                            if (!this.hasFirstFrame) {
+                                this.hasFirstFrame = true;
+                                this.maybeStartPlayback();
+                            }
+                            this.queueFrame(message.data, message.timestamp, message.is_last);
+                            break;
+                            
+                        case 'error':
+                            console.error('[Error] Server error:', message.message);
+                            this.loadingIndicator.style.display = 'none';
+                            break;
+                    }
+                } catch (error) {
+                    console.error("[Error] Message handling error:", error);
+                }
+            }
+
+            async handleAudio(audioBase64) {
+                try {
+                    console.log("[Audio] Starting audio setup");
+                    const audioBlob = await fetch(`data:audio/wav;base64,${audioBase64}`)
+                        .then(res => res.blob());
+                    this.audioBlob = audioBlob;
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Reset states
+                    this.isPlaying = false;
+                    this.frameQueue = [];
+                    this.recordedFrames = [];
+                    this.isLastFrameReceived = false;
+                    this.totalFramesReceived = 0;
+                    this.totalFramesRendered = 0;
+                    this.hasFirstFrame = false;
+                    
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                    
+                    this.audioPlayer.src = audioUrl;
+                    this.audioPlayer.load();
+                    
+                    this.audioReady = true;
+                    this.maybeStartPlayback();
+                    
+                } catch (error) {
+                    console.error("[Audio] Error handling audio:", error);
+                    this.loadingIndicator.style.display = 'none';
+                }
+            }
+
+            maybeStartPlayback() {
+                if (this.audioReady && this.hasFirstFrame && !this.isPlaying) {
+                    console.log("[Audio] Starting synchronized playback");
+                    this.audioPlayer.play().then(() => {
+                        console.log("[Audio] Playback successfully started");
+                    }).catch(error => {
+                        console.error("[Audio] Playback error:", error);
+                    });
+                }
+            }
+
+            queueFrame(frameBase64, timestamp, isLast) {
+                this.frameQueue.push({
+                    frameBase64,
+                    timestamp,
+                    isLast
+                });
+                console.log(`[Queue] Frame queued. Queue length: ${this.frameQueue.length}, timestamp: ${timestamp}`);
+
+                if (isLast) {
+                    this.isLastFrameReceived = true;
+                    console.log("[Queue] Last frame received and queued");
+                }
+            }
+
+            renderFrames() {
+                if (!this.isPlaying) {
+                    console.log("[Render] Not playing, skipping render");
+                    return;
+                }
+
+                const currentTime = this.audioPlayer.currentTime;
+                
+                while (this.frameQueue.length > 0) {
+                    const nextFrame = this.frameQueue[0];
+                    
+                    if (nextFrame.timestamp <= currentTime) {
+                        const frame = this.frameQueue.shift();
+                        this.displayFrame(frame.frameBase64);
+                        console.log(`[Render] Displaying frame at ${currentTime.toFixed(3)}s`);
+                        
+                        if (frame.isLast) {
+                            console.log("[Render] Last frame reached");
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                if (this.frameQueue.length > 0 || !this.isLastFrameReceived) {
+                    this.animationFrameId = requestAnimationFrame(() => this.renderFrames());
+                }
+            }
+
+            displayFrame(frameBase64) {
+                if (!frameBase64) {
+                    console.error("[Display] Received empty frame data");
+                    return;
+                }
+
+                const img = new Image();
+                
+                img.onload = () => {
+                    const ctx = this.videoCanvas.getContext('2d');
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, this.videoCanvas.width, this.videoCanvas.height);
+                    ctx.drawImage(img, 0, 0, this.videoCanvas.width, this.videoCanvas.height);
+                    
+                    this.recordedFrames.push(frameBase64);
+                    
+                    this.loadingIndicator.style.display = 'none';
+                    this.totalFramesRendered++;
+                    console.log(`[Display] Frame ${this.totalFramesRendered} rendered`);
+                };
+
+                img.src = `data:image/jpeg;base64,${frameBase64}`;
+            }
+
+            cleanup() {
+                console.log("[Cleanup] Starting cleanup");
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                }
+                this.isPlaying = false;
+                this.frameQueue = [];
+                this.isLastFrameReceived = false;
+                
+                // Clean up any active recording
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            }
+        }
+
+        // Initialize the player when the page loads
+        window.addEventListener('load', () => {
+            console.log("[Init] Page loaded, initializing player");
+            const player = new LipSyncPlayer();
+            
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                player.cleanup();
+            });
+        });
+    </script>
+</body>
+</html> -->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Avatar Lipsync Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/MediaRecorder/0.1.0/MediaRecorder.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        #videoCanvas {
+            width: 100%;
+            max-width: 512px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            width: 100%;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #text_input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #text_input:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .status.connected {
+            background-color: #e6f4ea;
+            color: #137333;
+        }
+
+        .status.disconnected {
+            background-color: #fce8e6;
+            color: #c5221f;
+        }
+
+        #audioPlayer {
+            display: none;
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+        }
+
+        .record-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #dc3545;
+        }
+
+        .record-button.recording {
+            background-color: #28a745;
+        }
+
+        .record-status {
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        .input-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-btn {
+            background-color: #e0e0e0;
+            color: #666;
+        }
+
+        .toggle-btn.active {
+            background-color: #1a73e8;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Avatar Lipsync Demo</h1>
+        
+        <div class="video-container">
+            <canvas id="videoCanvas" width="512" height="512"></canvas>
+            <div id="loading" class="loading">Generating response...</div>
+        </div>
+
+        <audio id="audioPlayer" controls></audio>
+
+        <div class="controls">
+            <div class="input-toggle">
+                <button id="textModeBtn" class="toggle-btn active">Text Input</button>
+                <button id="voiceModeBtn" class="toggle-btn">Voice Input</button>
+            </div>
+
+            <div id="textInputGroup" class="input-group">
+                <input type="text" id="text_input" placeholder="Type your message and press Enter">
+                <button id="sendButton">Send</button>
+            </div>
+
+            <div id="voiceInputGroup" class="input-group" style="display: none;">
+                <button id="recordButton" class="record-button">
+                    Start Recording
+                </button>
+                <div id="recordStatus" class="record-status"></div>
+            </div>
+        </div>
+
+        <div id="connectionStatus" class="status">Connecting...</div>
+    </div>
+    <script>
+        class LipSyncPlayer {
+            constructor() {
+                this.socket = null;
+                this.videoCanvas = document.getElementById('videoCanvas');
+                this.audioPlayer = document.getElementById('audioPlayer');
+                this.textInput = document.getElementById('text_input');
+                this.sendButton = document.getElementById('sendButton');
+                this.loadingIndicator = document.getElementById('loading');
+                this.statusElement = document.getElementById('connectionStatus');
+                this.recordButton = document.getElementById('recordButton');
+                this.recordStatus = document.getElementById('recordStatus');
+                this.textModeBtn = document.getElementById('textModeBtn');
+                this.voiceModeBtn = document.getElementById('voiceModeBtn');
+                this.textInputGroup = document.getElementById('textInputGroup');
+                this.voiceInputGroup = document.getElementById('voiceInputGroup');
+        
+                // Frame and playback state
+                this.frameQueue = [];
+                this.recordedFrames = [];
+                this.mediaRecorder = null;
+                this.recordedChunks = [];
+                this.isPlaying = false;
+                this.isLastFrameReceived = false;
+                this.animationFrameId = null;
+                this.totalFramesReceived = 0;
+                this.totalFramesRendered = 0;
+                this.audioReady = false;
+                this.hasFirstFrame = false;
+                this.isRecording = false;
+                this.isBuffering = true;  // New flag for buffering state
+                this.REQUIRED_FRAMES = 300;  // Constant for required frames
+                
+                console.log("[Init] LipSyncPlayer initialized");
+                this.initializeWebSocket();
+                this.setupEventListeners();
+                this.setupVoiceRecording();
+            }
+        
+            setupVoiceRecording() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    console.error("[Voice] Media devices not supported");
+                    this.recordButton.disabled = true;
+                    this.recordStatus.textContent = "Voice recording not supported in this browser";
+                    return;
+                }
+        
+                this.recordButton.addEventListener('click', () => {
+                    if (this.isRecording) {
+                        this.stopRecording();
+                    } else {
+                        this.startRecording();
+                    }
+                });
+            }
+        
+            async startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.recordedChunks = [];
+        
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.recordedChunks.push(event.data);
+                        }
+                    };
+        
+                    this.mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(this.recordedChunks, { type: 'audio/wav' });
+                        await this.sendVoiceToBackend(audioBlob);
+                        
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+        
+                    this.mediaRecorder.start();
+                    this.isRecording = true;
+                    this.recordButton.textContent = "Stop Recording";
+                    this.recordButton.classList.add('recording');
+                    this.recordStatus.textContent = "Recording...";
+        
+                } catch (error) {
+                    console.error("[Voice] Error starting recording:", error);
+                    this.recordStatus.textContent = "Error starting recording";
+                }
+            }
+        
+            stopRecording() {
+                if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    this.recordButton.textContent = "Start Recording";
+                    this.recordButton.classList.remove('recording');
+                    this.recordStatus.textContent = "Processing...";
+                }
+            }
+        
+            async sendVoiceToBackend(audioBlob) {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', audioBlob);
+        
+                    const response = await fetch('https://api.lifeguruai.com/api/VoiceToTxt', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': 'Bearer 875d688653a74867891e2037d855cfd607df6bd9'
+                        }
+                    });
+        
+                    if (!response.ok) {
+                        throw new Error('Transcription failed');
+                    }
+        
+                    const data = await response.json();
+                    console.log("Audio to text: ", data);
+                    if (data.converted_text) {
+                        this.sendMessage({
+                            text: data.converted_text.text,
+                            id: data.id
+                        });
+                        this.recordStatus.textContent = "Sent successfully";
+                    } else {
+                        throw new Error('No transcription received');
+                    }
+        
+                } catch (error) {
+                    console.error("[Voice] Error sending voice data:", error);
+                    this.recordStatus.textContent = "Error processing voice input";
+                }
+            }
+        
+            initializeWebSocket() {
+                this.socket = new WebSocket("wss://rlsqs5jvkjuaac-8001.proxy.runpod.net/ws/875d688653a74867891e2037d855cfd607df6bd9");
+                
+                this.socket.onopen = () => {
+                    console.log("[WebSocket] Connected");
+                    this.statusElement.textContent = "Connected";
+                    this.statusElement.className = "status connected";
+                };
+        
+                this.socket.onclose = () => {
+                    console.log("[WebSocket] Disconnected");
+                    this.statusElement.textContent = "Disconnected";
+                    this.statusElement.className = "status disconnected";
+                };
+        
+                this.socket.onerror = (error) => {
+                    console.error("[WebSocket] Error:", error);
+                    this.statusElement.textContent = "Connection Error";
+                    this.statusElement.className = "status disconnected";
+                };
+        
+                this.socket.onmessage = this.handleMessage.bind(this);
+            }
+        
+            setupEventListeners() {
+                this.textInput.addEventListener("keypress", (event) => {
+                    if (event.key === "Enter") {
+                        this.sendMessage({
+                            text: this.textInput.value.trim()
+                        });
+                    }
+                });
+        
+                this.sendButton.addEventListener("click", () => {
+                    this.sendMessage({
+                        text: this.textInput.value.trim()
+                    });
+                });
+        
+                this.textModeBtn.addEventListener("click", () => {
+                    this.textModeBtn.classList.add('active');
+                    this.voiceModeBtn.classList.remove('active');
+                    this.textInputGroup.style.display = 'flex';
+                    this.voiceInputGroup.style.display = 'none';
+                });
+        
+                this.voiceModeBtn.addEventListener("click", () => {
+                    this.textModeBtn.classList.remove('active');
+                    this.voiceModeBtn.classList.add('active');
+                    this.textInputGroup.style.display = 'none';
+                    this.voiceInputGroup.style.display = 'flex';
+                });
+        
+                this.audioPlayer.addEventListener('play', () => {
+                    console.log("[Audio] Playback started");
+                    this.isPlaying = true;
+                    this.renderFrames();
+                });
+        
+                this.audioPlayer.addEventListener('pause', () => {
+                    console.log("[Audio] Playback paused");
+                    this.isPlaying = false;
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                });
+        
+                this.audioPlayer.addEventListener('ended', () => {
+                    console.log("[Audio] Playback ended");
+                    this.isPlaying = false;
+                    if (this.animationFrameId) {
+                        cancelAnimationFrame(this.animationFrameId);
+                    }
+                });
+            }
+        
+            resetState() {
+                if (this.animationFrameId) {
+                    cancelAnimationFrame(this.animationFrameId);
+                    this.animationFrameId = null;
+                }
+        
+                this.frameQueue = [];
+                this.isPlaying = false;
+                this.isLastFrameReceived = false;
+                this.totalFramesReceived = 0;
+                this.totalFramesRendered = 0;
+                this.audioReady = false;
+                this.hasFirstFrame = false;
+                this.isBuffering = true;  // Reset buffering state
+        
+                if (this.audioPlayer) {
+                    this.audioPlayer.pause();
+                    this.audioPlayer.currentTime = 0;
+                }
+            }
+        
+            sendMessage(data) {
+                if (data && this.socket.readyState === WebSocket.OPEN) {
+                    this.resetState();
+                    console.log("[Send] Sending message:", data);
+                    this.loadingIndicator.style.display = 'block';
+                    this.socket.send(JSON.stringify({ data: data }));
+                    this.textInput.value = '';
+                }
+            }
+        
+            handleMessage(event) {
+                try {
+                    const message = JSON.parse(event.data);
+                    console.log("[WebSocket] Received message type:", message.type);
+                    
+                    switch (message.type) {
+                        case 'audio':
+                            console.log("[Audio] Received audio data");
+                            this.handleAudio(message.data);
+                            this.socket.send('audio_ready');
+                            break;
+                            
+                        case 'frame':
+                            this.totalFramesReceived++;
+                            this.queueFrame(message.data, message.timestamp, message.is_last);
+                            this.checkBufferingStatus();
+                            break;
+                            
+                        case 'error':
+                            console.error('[Error] Server error:', message.message);
+                            this.loadingIndicator.style.display = 'none';
+                            break;
+                    }
+                } catch (error) {
+                    console.error("[Error] Message handling error:", error);
+                }
+            }
+        
+            async handleAudio(audioBase64) {
+                try {
+                    console.log("[Audio] Starting audio setup");
+                    const audioBlob = await fetch(`data:audio/wav;base64,${audioBase64}`)
+                        .then(res => res.blob());
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    this.audioPlayer.src = audioUrl;
+                    this.audioPlayer.load();
+                    this.audioReady = true;
+                    
+                    // Check if we can start playback
+                    this.checkBufferingStatus();
+                } catch (error) {
+                    console.error("[Audio] Error handling audio:", error);
+                    this.loadingIndicator.style.display = 'none';
+                }
+            }
+        
+            queueFrame(frameBase64, timestamp, isLast) {
+                this.frameQueue.push({
+                    frameBase64,
+                    timestamp,
+                    isLast
+                });
+        
+                if (!this.hasFirstFrame) {
+                    this.hasFirstFrame = true;
+                }
+        
+                if (isLast) {
+                    this.isLastFrameReceived = true;
+                    console.log("[Frame] Last frame received");
+                }
+            }
+        
+            checkBufferingStatus() {
+                // Only start playback when we have enough frames and audio is ready
+                if (this.isBuffering && this.audioReady && !this.isPlaying && (this.totalFramesReceived >= this.REQUIRED_FRAMES || this.isLastFrameReceived)) {
+                    console.log(`[Buffer] Required frames (${this.REQUIRED_FRAMES}) received, starting playback`);
+                    this.isBuffering = false;
+                    this.audioPlayer.play().catch(error => {
+                        console.error("[Audio] Playback error:", error);
+                    });
+                }
+            }
+        
+            renderFrames() {
+                if (!this.isPlaying) {
+                    console.log("[Render] Not playing, skipping render");
+                    return;
+                }
+        
+                const currentTime = this.audioPlayer.currentTime;
+                
+                while (this.frameQueue.length > 0) {
+                    const nextFrame = this.frameQueue[0];
+                    
+                    if (nextFrame.timestamp <= currentTime) {
+                        const frame = this.frameQueue.shift();
+                        this.displayFrame(frame.frameBase64);
+                        
+                        if (frame.isLast) {
+                            console.log("[Render] Last frame reached");
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+        
+                if (this.frameQueue.length > 0 || !this.isLastFrameReceived) {
+                    this.animationFrameId = requestAnimationFrame(() => this.renderFrames());
+                }
+            }
+        
+            displayFrame(frameBase64) {
+                if (!frameBase64) {
+                    console.error("[Display] Received empty frame data");
+                    return;
+                }
+        
+                const img = new Image();
+                img.onload = () => {
+                    const ctx = this.videoCanvas.getContext('2d');
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, this.videoCanvas.width, this.videoCanvas.height);
+                    ctx.drawImage(img, 0, 0, this.videoCanvas.width, this.videoCanvas.height);
+                    
+                    this.totalFramesRendered++;
+                    this.loadingIndicator.style.display = 'none';
+                };
+                img.src = `data:image/jpeg;base64,${frameBase64}`;
+            }
+        
+            cleanup() {
+                this.resetState();
+                
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            }
+        }
+        
+        // Initialize the player when the page loads
+        window.addEventListener('load', () => {
+            console.log("[Init] Page loaded, initializing player");
+            const player = new LipSyncPlayer();
+            
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                player.cleanup();
+            });
+        });
+    </script>
+</body>
+</html>
+

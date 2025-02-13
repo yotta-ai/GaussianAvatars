@@ -46,7 +46,8 @@ class Config(Mini3DViewerConfig):
     """Path to the motion file (npz)"""
     sh_degree: int = 3
     """Spherical Harmonics degree"""
-    background_color: tuple[float] = (1., 1., 1.)
+    # background_color: tuple[float] = (1., 1., 1.)
+    background_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """default GUI background color"""
     save_folder: Path = Path("./viewer_output")
     """default saving folder"""
@@ -551,12 +552,12 @@ class LocalViewer(Mini3DViewer):
                 dpg.add_text(f'Joints')
                 self.pose_sliders = []
                 max_rot = 0.5
-                for joint in ['neck', 'jaw', 'eyes']:
+                for joint in ['neck', 'jaw', 'eyes', 'rotation', 'translation']:
                     if joint in self.flame_param:
                         with dpg.group(horizontal=True):
-                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 0], callback=callback_set_pose, tag=f"_slider-{joint}-x", width=70)
-                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 1], callback=callback_set_pose, tag=f"_slider-{joint}-y", width=70)
-                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 2], callback=callback_set_pose, tag=f"_slider-{joint}-z", width=70)
+                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 0], callback=callback_set_pose, tag=f"_slider-{joint}-x", width=70, clamped=False, no_input=False)
+                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 1], callback=callback_set_pose, tag=f"_slider-{joint}-y", width=70, clamped=False, no_input=False)
+                            dpg.add_slider_float(min_value=-max_rot, max_value=max_rot, format="%.2f", default_value=self.flame_param[joint][0, 2], callback=callback_set_pose, tag=f"_slider-{joint}-z", width=70, clamped=False, no_input=False)
                             self.pose_sliders.append(f"_slider-{joint}-x")
                             self.pose_sliders.append(f"_slider-{joint}-y")
                             self.pose_sliders.append(f"_slider-{joint}-z")
@@ -574,12 +575,13 @@ class LocalViewer(Mini3DViewer):
                     self.need_update = True
                 self.expr_sliders = []
                 dpg.add_text(f'Expressions')
-                for i in range(5):
-                    dpg.add_slider_float(label=f"{i}", min_value=-3, max_value=3, format="%.2f", default_value=0, callback=callback_set_expr, tag=f"_slider-expr-{i}", width=250)
+                for i in range(15):
+                    dpg.add_slider_float(label=f"{i}", min_value=-3, max_value=3, format="%.2f", default_value=0, callback=callback_set_expr, tag=f"_slider-expr-{i}", width=250, clamped=False, no_input=False)
                     self.expr_sliders.append(f"_slider-expr-{i}")
 
                 def callback_reset_flame(sender, app_data):
                     self.reset_flame_param()
+                    # print("Flame Param: ", self.flame_param)
                     if not dpg.get_value("_checkbox_enable_control"):
                         dpg.set_value("_checkbox_enable_control", True)
                     self.gaussians.update_mesh_by_param_dict(self.flame_param)

@@ -132,6 +132,7 @@ class FlameGaussianModel(GaussianModel):
             static_offset=flame_param['static_offset'],
             dynamic_offset=flame_param['dynamic_offset'][[timestep]],
         )
+        print("Eyes Pose Param: ", flame_param['eyes_pose'])
         self.update_mesh_properties(verts, verts_cano)
     
     def update_mesh_properties(self, verts, verts_cano):
