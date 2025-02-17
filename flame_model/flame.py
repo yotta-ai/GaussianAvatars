@@ -183,6 +183,27 @@ class FlameHead(nn.Module):
         if add_teeth:
             self.add_teeth()
         
+        # #add below code to init.
+        # self.n_eyelid_params = 2 # Number of eyelid control parameters (e.g., open, closed)
+
+        # # Define blendshapes for eyelids
+        # self.eyelid_open = self.v_template.clone().cuda()  # Assuming the template is with open eyelids
+        # self.eyelid_half_closed = self.create_eyelid_blendshape(0.1).cuda()
+        # self.eyelid_closed = self.create_eyelid_blendshape(1.0).cuda()
+
+        # # self.eyelid_open.cuda()
+        # # self.eyelid_half_closed.cuda()
+        # # self.eyelid_closed.cuda()
+
+        # print("eye lid open shape: ", self.eyelid_open.shape) 
+        # print("eye lid open blendshapes: ", self.eyelid_open) 
+
+        # print("eye lid half closed shape: ", self.eyelid_half_closed.shape)
+        # print("eye lid half closed blendshapes: ", self.eyelid_half_closed)
+
+        # print("eye lid closed shape: ", self.eyelid_closed.shape)
+        # print("eye lid closed blendshapes: ", self.eyelid_closed)
+        
     def add_teeth(self):
         # get reference vertices from lips
         vid_lip_outside_ring_upper = self.mask.get_vid_by_region(['lip_outside_ring_upper'], keep_order=True)
@@ -482,6 +503,18 @@ class FlameHead(nn.Module):
 
         self.mask.update(self.faces, self.textures_idx)
 
+    def create_eyelid_blendshape(self, factor):
+        # Create a blendshape for the given factor (0.0 = open, 1.0 = closed)
+        blendshape = self.v_template.clone()
+        left_eyelid_verts = self.mask.v.left_eyelid
+        right_eyelid_verts = self.mask.v.right_eyelid
+
+        # Move eyelid vertices along the y-axis
+        blendshape[left_eyelid_verts, 1] -= factor * 0.1  # Adjust the factor and scale as needed
+        blendshape[right_eyelid_verts, 1] -= factor * 0.1
+
+        return blendshape
+    
     def forward(
         self,
         shape,
@@ -491,6 +524,7 @@ class FlameHead(nn.Module):
         jaw,
         eyes,
         translation,
+        # eyelids,  # Add the new eyelid parameter
         zero_centered_at_root_node=False,  # otherwise, zero centered at the face
         return_landmarks=True,
         return_verts_cano=False,
@@ -535,6 +569,51 @@ class FlameHead(nn.Module):
 
         vertices = vertices + translation[:, None, :]
         J = J + translation[:, None, :]
+
+        # # --- Eyelid Offset ---
+        # # Get eyelid vertex indices
+        # # left_eyelid_verts = self.mask.v.left_eyelid
+        # # right_eyelid_verts = self.mask.v.right_eyelid
+
+        # left_eyelid_verts = self.mask.v.left_eyelid
+        # right_eyelid_verts = self.mask.v.right_eyelid
+        # #Simple way to handle if eyelids tensor's size is not torch.Size([1, 2])
+        # if eyelids.size(1) != self.n_eyelid_params:
+        #     raise ValueError("Eyelids tensor must have shape (batch_size, 2)")
+
+        # print("left_eyelid_verts device : ",left_eyelid_verts.device)
+        # print("right_eyelid_verts device : ",right_eyelid_verts.device)
+        # print("eyelids device : ",eyelids.device)
+
+        # print("self.eyelid_open device : ",self.eyelid_open.device)
+        # print("self.eyelid_half_closed device : ",self.eyelid_half_closed.device)
+        # print("self.eyelid_closed device : ",self.eyelid_closed.device)
+        # print("vertices device , ",vertices.device)
+
+        # print("=============================")
+        # print("eyelids size and shape ",eyelids.size(),eyelids.shape)
+        # print("left_eyelid_verts size and shape ",left_eyelid_verts.size(),left_eyelid_verts.shape)
+        # print("right_eyelid_verts size and shape ",right_eyelid_verts.size(),right_eyelid_verts.shape)
+        # print("vertices size and shape ",vertices.size(),vertices.shape)
+        # print("=============================")
+
+        # # Interpolate blendshapes based on control parameters
+        # left_eyelid_offset = (1 - eyelids[:, 0:1]) * self.eyelid_open[left_eyelid_verts] + eyelids[:, 0:1] * self.eyelid_closed[left_eyelid_verts]
+        # right_eyelid_offset = (1 - eyelids[:, 1:2]) * self.eyelid_open[right_eyelid_verts] + eyelids[:, 1:2] * self.eyelid_closed[right_eyelid_verts]
+        # # Apply offsets (example: move eyelids up/down along y-axis)
+        # # You'd probably want a more sophisticated offset calculation.
+        # # This is a very simplified example.
+        # print("Left eyelids vertices : ",left_eyelid_verts)
+        # print("Eyelids tensors : ",eyelids)
+        # print("selected eyelids tensors :",eyelids[:, 0:1])
+        # print(vertices)
+        # # vertices[:, left_eyelid_verts, 1] += eyelids[:, 0:1] * 0.1  #  0:1 keeps the dimension as (N, 1)
+        # # vertices[:, right_eyelid_verts, 1] += eyelids[:, 1:2] * 0.1
+        # # Apply offsets to the vertices
+        # vertices[:, left_eyelid_verts] += left_eyelid_offset - self.eyelid_open[left_eyelid_verts]
+        # vertices[:, right_eyelid_verts] += right_eyelid_offset - self.eyelid_open[right_eyelid_verts]
+
+        # # --- End Eyelid Offset ---
 
         ret_vals = [vertices]
 

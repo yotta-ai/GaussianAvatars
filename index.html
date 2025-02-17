@@ -930,7 +930,7 @@
             }
         
             initializeWebSocket() {
-                this.socket = new WebSocket("wss://rlsqs5jvkjuaac-8001.proxy.runpod.net/ws/875d688653a74867891e2037d855cfd607df6bd9");
+                this.socket = new WebSocket("ws://localhost:8001/ws/875d688653a74867891e2037d855cfd607df6bd9");
                 
                 this.socket.onopen = () => {
                     console.log("[WebSocket] Connected");

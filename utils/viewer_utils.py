@@ -248,12 +248,12 @@ class Mini3DViewer:
         if platform.system().upper() == "LINUX":
             os.environ["__GLVND_DISALLOW_PATCHING"] = "1"
 
-        dpg.create_context()
-        self.define_gui()
-        self.register_callbacks()
-        dpg.create_viewport(title=title, width=self.W, height=self.H, resizable=True)
-        dpg.setup_dearpygui()
-        dpg.show_viewport()
+        # dpg.create_context()
+        # self.define_gui()
+        # self.register_callbacks()
+        # dpg.create_viewport(title=title, width=self.W, height=self.H, resizable=True)
+        # dpg.setup_dearpygui()
+        # dpg.show_viewport()
 
     
     def __del__(self):

@@ -407,132 +407,6 @@ class LipsyncVideoGenerator:
         torch.cuda.empty_cache()
         self.is_streaming = False
         self.frame_idx = 0
-# class LipsyncVideoGenerator:
-#     def __init__(self):
-#         self.cfg = Config(
-#             point_path=Path("media/306/point_cloud.ply"),
-#             save_folder=Path("output_frames"),
-#             fps=30,
-#             demo_mode=True
-#         )
-#         self.viewer = LocalViewer(self.cfg)
-#         self.visemes = []
-#         self.frame_idx = 0
-#         self.is_streaming = False
-#         self.start_time = None
-#         self.audio_data = None
-#         self.total_duration = 0
-#         self.cam = None
-
-#     def set_visemes_and_audio(self, visemes, audio_base64):
-#         """Set both visemes and audio data"""
-#         interpolated_visemes = convert_visemes_to_flame(visemes)
-#         self.visemes = interpolated_visemes
-#         self.audio_data = audio_base64
-#         self.frame_idx = 0
-#         self.is_streaming = True
-#         self.start_time = None
-        
-#         # Calculate total duration from visemes in seconds
-#         if self.visemes:
-#             self.total_duration = max(v["time"] for v in self.visemes) / 1000.0
-#             print(f"Total duration: {self.total_duration} seconds")
-
-#     async def get_next_frame(self):
-#         """Generate a single frame with preserved colors."""
-#         if not self.visemes or self.frame_idx >= len(self.visemes):
-#             return None
-
-#         try:
-#             current_frame = self.visemes[self.frame_idx]
-#             self.viewer.apply_blendshapes(current_frame)
-
-#             # cam = self.viewer.prepare_camera()
-#             render_output = render(
-#                 self.cam,
-#                 self.viewer.gaussians,
-#                 self.cfg.pipeline,
-#                 torch.tensor(self.cfg.background_color).cuda()
-#             )
-
-#             frame_tensor = render_output.get("render")
-#             if frame_tensor is None:
-#                 return None
-
-#             # Convert tensor to image without changing color values
-#             frame_image = (np.clip(render_output["render"].detach().permute(1, 2, 0).cpu().numpy(), 0, 1) * 255).astype(np.uint8)
-
-#             img = Image.fromarray(frame_image)
-
-#             # Save to a BytesIO buffer (instead of disk)
-#             buffer = BytesIO()
-#             img.save(buffer, format="PNG")  # PNG ensures lossless color preservation
-#             buffer.seek(0)
-
-#             # Convert to base64
-#             frame_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-#             # Get timestamp in seconds
-#             timestamp = current_frame["time"] / 1000.0
-
-#             # Check if this is the last frame
-#             is_last_frame = self.frame_idx >= len(self.visemes) - 1
-
-#             self.frame_idx += 1
-
-#             return {
-#                 "frame": frame_base64,
-#                 "timestamp": timestamp,
-#                 "is_last": is_last_frame
-#             }
-
-
-#         except Exception as e:
-#             print(f"Frame generation error: {str(e)}")
-#             return None
-#     async def stream_video(self, websocket: WebSocket):
-#         """Stream synchronized video frames and audio"""
-#         try:
-#             # Send audio first
-#             await websocket.send_json({
-#                 "type": "audio",
-#                 "data": self.audio_data,
-#                 "duration": self.total_duration
-#             })
-#             # print("Fps: ", self.cfg.fps)
-
-#             # Wait for client to confirm audio loaded
-#             await websocket.receive_text()
-#             if not self.cam:
-#                 self.cam = self.viewer.prepare_camera()
-#             # Stream frames
-#             while self.is_streaming:
-#                 frame_data = await self.get_next_frame()
-#                 if frame_data is None:
-#                     self.is_streaming = False
-#                     break
-
-#                 await websocket.send_json({
-#                     "type": "frame",
-#                     "data": frame_data["frame"],
-#                     "timestamp": frame_data["timestamp"],
-#                     "is_last": frame_data["is_last"]
-#                 })
-
-#                 if frame_data["is_last"]:
-#                     self.is_streaming = False
-#                     break
-
-#                 # await asyncio.sleep(1 / self.cfg.fps)
-#                 # print("Frame: ", self.frame_idx)
-                
-#         except WebSocketDisconnect:
-#             print("WebSocket disconnected")
-#         except Exception as e:
-#             print(f"Streaming error: {str(e)}")
-#         finally:
-#             self.is_streaming = False
-
 # Create video generator instance
 video_generator = LipsyncVideoGenerator()
 
@@ -561,9 +435,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             if text:
                 print(f"[INFO] Received text: {text}")
                 
-                llm_response = generate_llm_response(text, identifier, audio_request_id, token)
+                # llm_response = generate_llm_response(text, identifier, audio_request_id, token)
                 # Get visemes and audio from API
-                response_data = get_visemes_from_text(llm_response)
+                response_data = get_visemes_from_text(text)
                 visemes = response_data["visemes"]
                 audio_base64 = response_data["audio"]
                 

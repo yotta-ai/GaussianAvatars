@@ -68,6 +68,7 @@ class FlameGaussianModel(GaussianModel):
                 'translation': torch.zeros([T, 3]),
                 'static_offset': static_offset,
                 'dynamic_offset': torch.zeros([T, num_verts, 3]),
+                # 'eyelids' : torch.zeros([T, 2]), # Add eyelids parameter
             }
 
             for i, mesh in pose_meshes.items():
@@ -78,11 +79,15 @@ class FlameGaussianModel(GaussianModel):
                 self.flame_param['eyes_pose'][i] = torch.from_numpy(mesh['eyes_pose'])
                 self.flame_param['translation'][i] = torch.from_numpy(mesh['translation'])
                 # self.flame_param['dynamic_offset'][i] = torch.from_numpy(mesh['dynamic_offset'])
+                # self.flame_param['dynamic_offset'][i] = torch.from_numpy(mesh['dynamic_offset'])
+                # if 'eyelids' in mesh:
+                #     self.flame_param['eyelids'][i] = torch.from_numpy(mesh['eyelids'])  # Load from data if available
             
             for k, v in self.flame_param.items():
                 self.flame_param[k] = v.float().cuda()
             
             self.flame_param_orig = {k: v.clone() for k, v in self.flame_param.items()}
+            # self.flame_param_orig["eyelids"]=torch.zeros([T, 2]), # Add eyelids parameter
         else:
             # NOTE: not sure when this happens
             import ipdb; ipdb.set_trace()
@@ -98,6 +103,11 @@ class FlameGaussianModel(GaussianModel):
             static_offset = flame_param['static_offset']
         else:
             static_offset = self.flame_param['static_offset']
+        
+        # if 'eyelids' in flame_param:
+        #     eyelids = flame_param['eyelids']
+        # else:
+        #     eyelids = self.flame_param['eyelids']
 
         verts, verts_cano = self.flame_model(
             shape[None, ...],
@@ -107,16 +117,25 @@ class FlameGaussianModel(GaussianModel):
             flame_param['jaw'].cuda(),
             flame_param['eyes'].cuda(),
             flame_param['translation'].cuda(),
+            # eyelids.cuda(),
             zero_centered_at_root_node=False,
             return_landmarks=False,
             return_verts_cano=True,
             static_offset=static_offset,
         )
+
         self.update_mesh_properties(verts, verts_cano)
 
     def select_mesh_by_timestep(self, timestep, original=False):
         self.timestep = timestep
-        flame_param = self.flame_param_orig if original and self.flame_param_orig != None else self.flame_param
+        if self.flame_param_orig is not None and original:
+            flame_param = self.flame_param_orig
+            print("Using original flame parameters")
+        else:
+            flame_param = self.flame_param
+            print("Using current flame parameters")
+        print(flame_param)
+        # flame_param = self.flame_param_orig if original and self.flame_param_orig != None else self.flame_param
 
         verts, verts_cano = self.flame_model(
             flame_param['shape'][None, ...],
@@ -126,13 +145,17 @@ class FlameGaussianModel(GaussianModel):
             flame_param['jaw_pose'][[timestep]],
             flame_param['eyes_pose'][[timestep]],
             flame_param['translation'][[timestep]],
+            # flame_param['eyelids'][[timestep]], # Pass eyelids parameter
             zero_centered_at_root_node=False,
             return_landmarks=False,
             return_verts_cano=True,
             static_offset=flame_param['static_offset'],
             dynamic_offset=flame_param['dynamic_offset'][[timestep]],
         )
-        print("Eyes Pose Param: ", flame_param['eyes_pose'])
+        # print("Eyes Pose Param: ", flame_param['eyes_pose'])
+        np_dict = {key: value.cpu().numpy() for key, value in self.flame_param.items()}
+        # Save the dictionary as a .npz file
+        np.savez_compressed('tensor_dict.npz', **np_dict)
         self.update_mesh_properties(verts, verts_cano)
     
     def update_mesh_properties(self, verts, verts_cano):
@@ -236,7 +259,7 @@ class FlameGaussianModel(GaussianModel):
 
             self.flame_param = flame_param
             self.num_timesteps = self.flame_param['expr'].shape[0]  # required by viewers
-        
+            # self.flame_param['eyelids'] = torch.zeros([self.num_timesteps, 2]).cuda()  
         if 'motion_path' in kwargs and kwargs['motion_path'] is not None:
             # When there is a motion sequence specified, load only dynamic parameters.
             motion_path = Path(kwargs['motion_path'])
@@ -254,6 +277,7 @@ class FlameGaussianModel(GaussianModel):
                 'jaw_pose': flame_param['jaw_pose'],
                 'eyes_pose': flame_param['eyes_pose'],
                 'expr': flame_param['expr'],
+                # 'eyelids': torch.zeros([1, 2]),
                 'dynamic_offset': flame_param['dynamic_offset'],
             }
             self.num_timesteps = self.flame_param['expr'].shape[0]  # required by viewers
