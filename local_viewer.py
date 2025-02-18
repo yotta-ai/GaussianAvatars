@@ -576,7 +576,7 @@ class LocalViewer(Mini3DViewer):
                 self.expr_sliders = []
                 dpg.add_text(f'Expressions')
                 for i in range(15):
-                    dpg.add_slider_float(label=f"{i}", min_value=-3, max_value=3, format="%.2f", default_value=0, callback=callback_set_expr, tag=f"_slider-expr-{i}", width=250, clamped=False, no_input=False)
+                    dpg.add_slider_float(label=f"{i}", min_value=-5, max_value=5, format="%.2f", default_value=0, callback=callback_set_expr, tag=f"_slider-expr-{i}", width=250, clamped=False, no_input=False)
                     self.expr_sliders.append(f"_slider-expr-{i}")
 
                 def callback_reset_flame(sender, app_data):

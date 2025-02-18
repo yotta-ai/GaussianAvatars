@@ -32,7 +32,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             }
         )
         return
-
+    # Start continuous frame generation and sending in the background
+    if video_generator.cam is None:
+        video_generator.cam = video_generator.viewer.prepare_camera()
+    asyncio.create_task(video_generator.generate_gif(websocket))
     try:
         while True:
             message = await websocket.receive_text()

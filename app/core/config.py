@@ -56,7 +56,7 @@ class Config(Mini3DViewerConfig):
 config = Config(
     point_path=Path("media/306/point_cloud.ply"),
     save_folder=Path("output_frames"),
-    fps=30,
+    fps=45,
     demo_mode=True,
 )
 settings = Settings()

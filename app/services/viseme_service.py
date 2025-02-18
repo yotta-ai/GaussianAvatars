@@ -59,34 +59,91 @@ class VisemeService:
     def interpolate_blendshapes(
         self, blendshapes: List[Dict], fps: int = config.fps
     ) -> List[Dict]:
-        """Interpolates blendshapes based on timestamps to match FPS."""
+        """
+        Interpolates blendshapes based on timestamps to match the specified FPS.
+
+        The function expects each element of `blendshapes` to have a 'time' key and
+        a 'parameters' key containing a dict of numeric lists. It does not hardcode
+        any parameter names. In case of duplicate times, the parameters are averaged.
+        """
         try:
-            if not blendshapes:  # Handle empty input list
+            if not blendshapes:
                 return []
 
-            timestamps = [b["time"] for b in blendshapes]
-            total_duration = timestamps[-1]
-            frame_times = np.arange(timestamps[0], total_duration, 1000 / fps)
+            # --- STEP 1: Sort the blendshapes by time ---
+            blendshapes = sorted(blendshapes, key=lambda b: b["time"])
 
-            interpolated_blendshapes = []
+            # --- STEP 2: Group and average duplicate timestamps ---
+            grouped = {}  # key: time, value: list of parameters dicts
+            for b in blendshapes:
+                t = b["time"]
+                grouped.setdefault(t, []).append(b["parameters"])
+
+            unique_times = sorted(grouped.keys())
+            averaged_blendshapes = []
+            for t in unique_times:
+                param_list = grouped[t]
+                # Determine dynamic keys (assuming all dicts for a given time share the same keys)
+                keys = param_list[0].keys()
+                averaged_params = {}
+                for key in keys:
+                    # Convert each parameter's value to a numpy array and average along the 0-axis.
+                    arr = np.array([params[key] for params in param_list], dtype=float)
+                    avg_val = np.mean(arr, axis=0)
+                    # Convert the result to a list if it is an array.
+                    averaged_params[key] = (
+                        avg_val.tolist() if isinstance(avg_val, np.ndarray) else avg_val
+                    )
+                averaged_blendshapes.append({"time": t, "parameters": averaged_params})
+
+            # Replace the original blendshapes with the averaged version.
+            blendshapes = averaged_blendshapes
+
+            # --- STEP 3: Setup interpolation ---
+            # Extract sorted timestamps.
+            timestamps = [b["time"] for b in blendshapes]
+            start, end = timestamps[0], timestamps[-1]
+            step = 1000 / fps  # converting fps to a step in milliseconds
+
+            # Create frame times ensuring that the final time (end) is included.
+            frame_times = list(np.arange(start, end, step))
+            if not np.isclose(frame_times[-1], end):
+                frame_times.append(end)
+
+            # Dynamically extract parameter keys.
             keys = blendshapes[0]["parameters"].keys()
 
-            # Create interpolation functions for each blendshape key
-            interpolators = {k: [] for k in keys}
+            # Create an interpolation function for each parameter key.
+            interpolators = {}
             for k in keys:
-                values = np.array([b["parameters"][k] for b in blendshapes])
+                # Gather the values for key `k` over all blendshapes.
+                values = np.array(
+                    [b["parameters"][k] for b in blendshapes], dtype=float
+                )
+                # Build the interpolation function.
                 interp_func = interp1d(
                     timestamps, values, axis=0, kind="linear", fill_value="extrapolate"
                 )
-                interpolators[k] = [interp_func(t) for t in frame_times]
+                interpolators[k] = interp_func
 
-            # Convert interpolated values into frame-wise blendshapes
-            for i, frame_time in enumerate(frame_times):
-                frame_blendshape = {k: interpolators[k][i].tolist() for k in keys}
-                frame_blendshape["time"] = int(frame_time)
-                interpolated_blendshapes.append(frame_blendshape)
+            # --- STEP 4: Interpolate for each frame time ---
+            interpolated_blendshapes = []
+            for t in frame_times:
+                frame_params = {}
+                for k in keys:
+                    # Evaluate and, if needed, convert numpy arrays to lists.
+                    val = interpolators[k](t)
+                    frame_params[k] = (
+                        val.tolist() if isinstance(val, np.ndarray) else val
+                    )
+                # Note: The returned structure is similar to the input:
+                # a dict with 'time' and 'parameters'
+                interpolated_blendshapes.append(
+                    {"time": int(round(t)), "parameters": frame_params}
+                )
 
             return interpolated_blendshapes
+
         except Exception as e:
             logging.error(f"Error in interpolation: {e}")
             return blendshapes
