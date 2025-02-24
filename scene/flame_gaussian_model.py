@@ -130,11 +130,11 @@ class FlameGaussianModel(GaussianModel):
         self.timestep = timestep
         if self.flame_param_orig is not None and original:
             flame_param = self.flame_param_orig
-            print("Using original flame parameters")
+            # print("Using original flame parameters")
         else:
             flame_param = self.flame_param
-            print("Using current flame parameters")
-        print(flame_param)
+            # print("Using current flame parameters")
+        # print(flame_param)
         # flame_param = self.flame_param_orig if original and self.flame_param_orig != None else self.flame_param
 
         verts, verts_cano = self.flame_model(
@@ -153,9 +153,9 @@ class FlameGaussianModel(GaussianModel):
             dynamic_offset=flame_param['dynamic_offset'][[timestep]],
         )
         # print("Eyes Pose Param: ", flame_param['eyes_pose'])
-        np_dict = {key: value.cpu().numpy() for key, value in self.flame_param.items()}
-        # Save the dictionary as a .npz file
-        np.savez_compressed('tensor_dict.npz', **np_dict)
+        # np_dict = {key: value.detatch().numpy() for key, value in self.flame_param.items()}
+        # # Save the dictionary as a .npz file
+        # np.savez_compressed('tensor_dict.npz', **np_dict)
         self.update_mesh_properties(verts, verts_cano)
     
     def update_mesh_properties(self, verts, verts_cano):

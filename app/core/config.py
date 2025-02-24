@@ -1,34 +1,29 @@
 # app/core/config.py
-from pydantic import BaseModel
+from pydantic import BaseModel, conset
 from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
 from utils.viewer_utils import Mini3DViewer, Mini3DViewerConfig
 from pathlib import Path
+from decouple import config
 
 
 class Settings(BaseModel):
     """Configuration settings for the application."""
 
-    # LLM (Large Language Model) related configurations.
-    LLM_API_URL: str = "https://api.lifeguruai.com/api/ConversationWithTrigger"
-    VOICE_TO_TEXT_API_URL: str = "https://api.lifeguruai.com/api/VoiceToTxt"
+    LIFEGURU_API_URL: str = "https://api.lifeguruai.com/api"
     TTS_AVATAR_API_URL: str = "https://api.lifeguruai.com/api/TTS_Avatar"
-    GET_SESSION_IDENTIFIER_API_URL: str = (
-        "https://api.lifeguruai.com/api/GetSessionIdentifier"
-    )
-    API_AUTHORIZATION_TOKEN: str = (
-        "Bearer 875d688653a74867891e2037d855cfd607df6bd9"  # Consider environment variables or secrets management
-    )
 
     # WebSocket configurations.
     WEBSOCKET_HOST: str = "0.0.0.0"
     WEBSOCKET_PORT: int = 8001
-    WEBSOCKET_URL: str = (
-        "wss://rlsqs5jvkjuaac-8001.proxy.runpod.net/ws/875d688653a74867891e2037d855cfd607df6bd9"  # Consider dynamically building this
-    )
 
     # Debug/Development options
     DEBUG_MODE: bool = False
+    # get base directory of project by using Path(__file__).parent
+    BASE_DIR: Path = Path(__file__).parent.parent.parent
+
+    AWS_ACCESS_KEY: str = config("AWS_ACCESS_KEY")
+    AWS_SECRET: str = config("AWS_SECRET")
 
 
 @dataclass
@@ -60,3 +55,5 @@ config = Config(
     demo_mode=True,
 )
 settings = Settings()
+print("Base directory ", settings.BASE_DIR)
+OPENAI_API_KEY = config("OPENAI_API_KEY")

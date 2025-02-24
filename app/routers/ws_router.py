@@ -6,23 +6,23 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.constants import ERROR_MESSAGE
-from app.services.llm_service import LLMService
+from app.services.lifeguru_service import LifeGuruService
 from app.services.viseme_service import VisemeService
 from app.services.video_service import VideoService
 
 router = APIRouter()
-llm_service = LLMService()
+lifeguru_service = LifeGuruService()
 viseme_service = VisemeService()
 video_generator = VideoService()
 
 
-@router.websocket("/ws/{token}")
+@router.websocket("/ws/test/{token}")
 async def websocket_endpoint(websocket: WebSocket, token: str):
     """
     WebSocket endpoint for handling real-time lipsync generation.
     """
     await websocket.accept()
-    identifier = llm_service.get_session_identifier(token=token)
+    identifier = await lifeguru_service.get_session_identifier(token=token)
 
     if not identifier:
         await websocket.send_json(
@@ -43,10 +43,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             request_data = data.get("data")
             text = request_data.get("text")
             audio_request_id = request_data.get("id", None)
-
+            print(text)
             if text:
                 logging.info(f"[INFO] Received text: {text}")
-                # llm_response = llm_service.generate_response(text, identifier, audio_request_id, token)
+                # llm_response = await lifeguru_service.generate_response(text, identifier, audio_request_id, token)
 
                 # Get visemes and audio from API
                 response_data = viseme_service.get_visemes_and_audio_from_text(text)

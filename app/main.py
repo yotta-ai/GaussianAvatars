@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import ws_router
-
+from app.routers import avatar
 app = FastAPI(title="Lipsync Video Server")
 
 app.add_middleware(
@@ -15,6 +15,7 @@ app.add_middleware(
 
 # Include the websocket router.
 app.include_router(ws_router.router)
+app.include_router(avatar.router)
 
 
 @app.get("/")
