@@ -1,16 +1,51 @@
 import json
+import base64
 import requests
 import logging
-from typing import Dict, List, Optional
-from app.core.config import settings, config
-from app.core.constants import VISEME_MAPPING, FLAME_PARAMETERS
-from scipy.interpolate import interp1d  # Import scipy
+import boto3
 import numpy as np
+from typing import Dict, List, Optional
+from scipy.interpolate import interp1d  # Import scipy
+from app.core.config import Settings, settings, config
+from app.core.constants import VISEME_MAPPING, FLAME_PARAMETERS
 
 
 class VisemeService:
     def __init__(self):
         self.tts_avatar_api_url = settings.TTS_AVATAR_API_URL
+
+    def generate_visemes_and_audio(self, text: str) -> Dict:
+        voice = "Arthur"
+        engine = "neural"
+        polly_client = boto3.Session(
+            aws_access_key_id=settings.AWS_ACCESS_KEY,
+            aws_secret_access_key=settings.AWS_SECRET,
+            region_name="us-east-1",
+        ).client("polly")
+        response_audio = polly_client.synthesize_speech(
+            VoiceId=voice, Engine=engine, OutputFormat="mp3", Text=text
+        )
+        speech = response_audio["AudioStream"].read()
+        speech_base64 = base64.b64encode(speech).decode("utf-8")
+        response_visemes = polly_client.synthesize_speech(
+            VoiceId=voice,
+            Engine=engine,
+            OutputFormat="json",
+            Text=text,
+            SpeechMarkTypes=["viseme"],
+        )
+        visemes_data = response_visemes["AudioStream"].read().decode("utf-8")
+        # print(visemes_data)
+        visemes_objects = visemes_data.split("\n")
+        visemes = []
+        for viseme_object in visemes_objects:
+            if viseme_object:
+                viseme = json.loads(viseme_object)
+                visemes.append(viseme)
+        return {
+            "visemes": visemes,
+            "audio": speech_base64,
+        }
 
     def get_visemes_and_audio_from_text(self, text: str) -> Dict:
         """Gets visemes and audio data from the text-to-speech API."""
@@ -46,11 +81,11 @@ class VisemeService:
                 )
             else:
                 logging.warning(f"Skipping unknown viseme value: {viseme_value}")
-        # save visemes and result in json file
-        with open("visemes.json", "w") as f:
-            json.dump(visemes, f)
-        with open("flame_params.json", "w") as f:
-            json.dump(result, f)
+        # # save visemes and result in json file
+        # with open("visemes.json", "w") as f:
+        #     json.dump(visemes, f)
+        # with open("flame_params.json", "w") as f:
+        #     json.dump(result, f)
 
         if len(result) > 1:
             result = self.interpolate_blendshapes(result)  # Use interpolation

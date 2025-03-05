@@ -152,3 +152,7 @@ class ConversationOutputTokenDetails(BaseModel):
 
     audio_tokens: int
     text_tokens: int
+
+class LastMessage(BaseModel):
+    text: str | None = None
+    acknowledgement_status : bool = False

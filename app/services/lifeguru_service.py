@@ -91,3 +91,74 @@ class LifeGuruService:
         except httpx.RequestError as e:
             logging.error(f"[Voice] Error sending voice data: {e}")
             return None, None
+
+    async def save_message_to_backend(
+        self, token: str, session_id: str, user_message: str, assistant_message: str
+    ) -> bool:
+        message_obj = {
+            "session_id": session_id,
+            "user_message": user_message or "",
+            "assistant_message": assistant_message or "",
+        }
+        url = f"{self.api_url}/saveMessage"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            # Using httpx.AsyncClient for async request
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=message_obj)
+
+                # Check if request was successful (status codes 200-299)
+                if not (200 <= response.status_code < 300):
+                    print(
+                        f"Failed to save message: {response.status_code} - {response.text}"
+                    )
+                    return False
+
+                print("Message saved successfully:", message_obj)
+                return True
+
+        except Exception as error:
+            print(f"Error saving message to backend: {str(error)}")
+            return False
+
+    async def schedule_google_calendar_event(
+        self, event_description: str, token: str
+    ) -> dict:
+        url = f"{self.api_url}/GoogleCalendarEvent"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        payload = {"event_description": event_description}
+        print("Scheduling event:", payload)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=payload)
+
+                if not (200 <= response.status_code < 300):
+                    print(
+                        f"Failed to schedule event: {response.status_code} - {response.text}"
+                    )
+                    return {
+                        "success": False,
+                        "message": "Failed to schedule the event.",
+                    }
+
+                result = response.json()
+                print("Event scheduled successfully:", result)
+                return {
+                    "success": True,
+                    "message": "Event scheduled successfully.",
+                    "data": result,
+                }
+
+        except Exception as error:
+            print(f"Error scheduling event: {str(error)}")
+            return {
+                "success": False,
+                "message": "An error occurred while scheduling the event.",
+            }

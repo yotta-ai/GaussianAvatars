@@ -36,6 +36,8 @@ class OpenAIService:
         ]
         self.client = AsyncOpenAI(api_key=self.openai_api_key)
         self.conversation: conversation_types.Conversation = None
+        self.last_assistant_message: conversation_types.LastMessage = None
+        self.last_user_message: conversation_types.LastMessage = None
 
     async def send_initial_conversation_item(self, conn: AsyncRealtimeConnection):
         """
@@ -61,7 +63,7 @@ class OpenAIService:
         await conn.send(initial_conversation_item)
         await conn.response.create()
 
-    async def add_end_conversation_tool(self, conn: AsyncRealtimeConnection):
+    async def add_tools(self, conn: AsyncRealtimeConnection):
         payload = {
             "tools": [
                 {
@@ -86,6 +88,23 @@ class OpenAIService:
             ],
             "tool_choice": "auto",
         }
+        payload["tools"].append(
+            {
+                "type": "function",
+                "name": "schedule_google_calender_event",
+                "description": "Call this Tool when user wants to schedule an event in his Google calendar.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "event_description": {
+                            "type": "string",
+                            "description": "A brief description of the event to be scheduled.",
+                        },
+                    },
+                    "required": ["event_description"],
+                },
+            }
+        )
         await conn.session.update(session=payload)
 
     async def add_custom_tool(
@@ -134,7 +153,7 @@ class OpenAIService:
         await self.send_initial_conversation_item(conn)
 
     def handle_conversation_event(self, event: openai_event_type.RealtimeServerEvent):
-        logger.info("Event : %s", event.type)
+        # logger.info("Event : %s", event.type)
         if isinstance(
             event, openai_event_type.session_created_event.SessionCreatedEvent
         ):
@@ -232,6 +251,9 @@ class OpenAIService:
         )
         if conversation_item:
             conversation_item.text = event.transcript
+            self.last_user_message = conversation_types.LastMessage(
+                text=conversation_item.text
+            )
 
     def handle_assistant_message_item_created(
         self, event: openai_event_type.RealtimeServerEvent
@@ -282,6 +304,9 @@ class OpenAIService:
             conversation_item.text = event.response.output[0].content[0].transcript
         elif conversation_item and event.response.output[0].content[0].type == "text":
             conversation_item.text = event.response.output[0].content[0].text
+            self.last_assistant_message = conversation_types.LastMessage(
+                text=conversation_item.text
+            )
 
         conversation_item.usage = conversation_types.ConversationUsage(
             **json.loads(event.response.usage.json())
