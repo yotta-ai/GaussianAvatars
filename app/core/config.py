@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
 from utils.viewer_utils import Mini3DViewer, Mini3DViewerConfig
 from pathlib import Path
-from decouple import config
+from decouple import config as env_config
 
 
 class Settings(BaseModel):
@@ -22,8 +22,8 @@ class Settings(BaseModel):
     # get base directory of project by using Path(__file__).parent
     BASE_DIR: Path = Path(__file__).parent.parent.parent
 
-    AWS_ACCESS_KEY: str = config("AWS_ACCESS_KEY")
-    AWS_SECRET: str = config("AWS_SECRET")
+    AWS_ACCESS_KEY: str = env_config("AWS_ACCESS_KEY")
+    AWS_SECRET: str = env_config("AWS_SECRET")
 
 
 @dataclass
@@ -56,4 +56,4 @@ config = Config(
 )
 settings = Settings()
 print("Base directory ", settings.BASE_DIR)
-OPENAI_API_KEY = config("OPENAI_API_KEY")
+OPENAI_API_KEY = env_config("OPENAI_API_KEY")
