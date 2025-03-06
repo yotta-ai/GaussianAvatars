@@ -264,7 +264,8 @@ class VideoService:
         """ "Generate Gif of the currently loaded avatar"""
 
         gif_filename = "idle_avatar.gif"
-        if os.path.exists(os.path.join(settings.BASE_DIR, gif_filename)):
+        gif_file_path = os.path.join(settings.BASE_DIR,"static", gif_filename)
+        if os.path.exists(gif_file_path):
             print(f"File {gif_filename} already exists")
             await websocket.send_json(
                 {
@@ -293,7 +294,7 @@ class VideoService:
             duration = 100  # milliseconds
             # Save the first frame and append the rest to create a GIF
             idle_frames[0].save(
-                gif_filename,
+                gif_file_path,
                 format="GIF",
                 save_all=True,
                 append_images=idle_frames[1:],
