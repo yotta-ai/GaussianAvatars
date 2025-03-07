@@ -14,8 +14,15 @@ class VisemeService:
     def __init__(self):
         self.tts_avatar_api_url = settings.TTS_AVATAR_API_URL
 
-    def generate_visemes_and_audio(self, text: str) -> Dict:
-        voice = "Arthur"
+    def generate_visemes_and_audio(self, text: str, model_id) -> Dict:
+        if model_id == 306:
+            voice = "Arthur"
+        elif model_id == 104:
+            voice = "Gregory"
+        elif model_id == 165:
+            voice = "Stephen"
+        elif model_id == 302:
+            voice = "Niamh"
         engine = "neural"
         polly_client = boto3.Session(
             aws_access_key_id=settings.AWS_ACCESS_KEY,
