@@ -88,11 +88,13 @@ class OpenAIStreamHandler:
         websocket: WebSocket,
         session_id: str,
         token: str,
+        model_id: int,
     ):
         self.openai_service = openai_service
         self.websocket = websocket
         self.session_id = session_id
         self.token = token
+        self.model_id = model_id
         self.ai_response_start_timestamp: int = 0
         self.latest_client_media_timestamp: int = 0
         self.last_assistant_item: Any = None
@@ -186,7 +188,7 @@ class OpenAIStreamHandler:
         """Process the text to generate visemes and stream frames asynchronously."""
         try:
             # Generate visemes and audio
-            response_data = self.viseme_service.generate_visemes_and_audio(text)
+            response_data = self.viseme_service.generate_visemes_and_audio(text,self.model_id)
 
             # Check if the task should be cancelled
             if self.should_cancel_frame_generation:
@@ -459,7 +461,9 @@ async def websocket_endpoint(
             await openai_service.initialize_session(openai_connection)
             await openai_service.add_tools(openai_connection)
 
-            handler = OpenAIStreamHandler(openai_service, websocket, session_id, token)
+            handler = OpenAIStreamHandler(
+                openai_service, websocket, session_id, token, model_id
+            )
             handler.viseme_service = viseme_service
             handler.video_service = video_service
             receive_task = asyncio.create_task(

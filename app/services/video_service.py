@@ -254,8 +254,9 @@ class VideoService:
 
     async def get_idle_params(self):
         # read json list from file random_frames.json
+        idle_params_file_path = os.path.join(settings.BASE_DIR,"idle_params.json")
         with open(
-            "/home/yottacom/Projects/GaussianAvatars/idle_params.json", "r"
+            idle_params_file_path, "r"
         ) as file:
             random_frames = json.load(file)
         return random_frames
