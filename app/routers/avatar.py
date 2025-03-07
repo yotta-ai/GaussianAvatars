@@ -9,7 +9,7 @@ from fastapi import (
     WebSocketDisconnect,
     WebSocketException,
 )
-from typing import Set, Any, Dict, Optional
+from typing import Set, Any, Dict, Optional,Callable
 
 from app.services import viseme_service
 from app.services import video_service
@@ -57,6 +57,17 @@ class ConnectionManager:
         """Send a message to all active WebSocket connections."""
         for connection in self.active_connections:
             await connection.send_text(message)
+    
+    async def check_connection(self,websocket:WebSocket,callback:Optional[Callable] = None,):
+        while True:
+            if hasattr(websocket, "client_state") and websocket.client_state.name != "CONNECTED":
+                logger.info(f"WebSocket client state is {websocket.client_state.name}, removing connection")
+                self.disconnect(websocket)
+                if callback:
+                    await callback()
+                break
+            await asyncio.sleep(1)
+            
 
 
 class OpenAIStreamHandler:
@@ -439,6 +450,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
             )
             send_task = asyncio.create_task(handler.send_to_client(openai_connection))
             handler.tasks.extend([receive_task, send_task])
+            asyncio.create_task(manager.check_connection(websocket,connection_monitor.connection_state_changed))
             await asyncio.gather(receive_task, send_task)
 
     except WebSocketDisconnect:
