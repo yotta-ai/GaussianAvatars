@@ -19,3 +19,4 @@ colorlog
 openai
 boto3==1.34.2
 python-decouple
+google-cloud-compute

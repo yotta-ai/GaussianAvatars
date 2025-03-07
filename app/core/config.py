@@ -25,6 +25,10 @@ class Settings(BaseModel):
     AWS_ACCESS_KEY: str = env_config("AWS_ACCESS_KEY")
     AWS_SECRET: str = env_config("AWS_SECRET")
 
+    GCLOUD_AVATAR_INSTANCE_PROJECT: str = env_config("GCLOUD_AVATAR_INSTANCE_PROJECT")
+    GCLOUD_AVATAR_INSTANCE_NAME: str = env_config("GCLOUD_AVATAR_INSTANCE_NAME")
+    GCLOUD_AVATAR_INSTANCE_ZONE: str = env_config("GCLOUD_AVATAR_INSTANCE_ZONE")
+
 
 @dataclass
 class PipelineConfig:

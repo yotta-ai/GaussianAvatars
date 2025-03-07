@@ -2,15 +2,24 @@ import time
 import json
 import base64
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException
+from fastapi import (
+    FastAPI,
+    APIRouter,
+    WebSocket,
+    WebSocketDisconnect,
+    WebSocketException,
+)
 from typing import Set, Any, Dict, Optional
 
 from app.services import viseme_service
 from app.services import video_service
+from app.services import gcloud_service
 from app.services.openai_service import OpenAIService, AsyncRealtimeConnection
 from app.services.lifeguru_service import LifeGuruService
 from app.services.viseme_service import VisemeService
 from app.services.video_service import VideoService
+from app.services.monitoring_service import ConnectionMonitor
+from app.services.gcloud_service import GcloudService
 from app.core.config import OPENAI_API_KEY
 from app.logger import setup_logger
 
@@ -363,6 +372,29 @@ class OpenAIStreamHandler:
                 task.cancel()
 
 
+manager = ConnectionManager()
+gcloud_service = GcloudService()
+connection_monitor = ConnectionMonitor(
+    connection_manager=manager,
+    inactivity_timeout=30,
+    stop_callback=gcloud_service.stop_instance,
+)
+
+
+def register_connection_monitor(app: FastAPI):
+    """Register the connection monitor to start on application startup."""
+
+    @app.on_event("startup")
+    async def startup_event():
+        connection_monitor.start_monitoring()
+        logger.info("Connection monitor started")
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        connection_monitor.stop_monitoring()
+        logger.info("Connection monitor stopped")
+
+
 @router.websocket("/ws/avatar/{token}")
 async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     """WebSocket endpoint for real-time communication."""
@@ -385,8 +417,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
             system_message=prompt,
             show_timing_math=False,
         )
-        manager = ConnectionManager()
+
         await manager.connect(websocket)
+        await connection_monitor.connection_state_changed()
         viseme_service = VisemeService()
         video_service = VideoService()
         if video_service.cam is None:
@@ -410,6 +443,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        await connection_monitor.connection_state_changed()
         logger.info("WebSocket disconnected for session_id=%s", session_id)
     except Exception as e:
+        manager.disconnect(websocket)
+        await connection_monitor.connection_state_changed()
         logger.error("Unexpected error in websocket_endpoint: %s", e)
