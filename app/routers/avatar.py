@@ -2,6 +2,7 @@ import time
 import json
 import base64
 import asyncio
+from pathlib import Path
 from fastapi import (
     FastAPI,
     APIRouter,
@@ -9,7 +10,7 @@ from fastapi import (
     WebSocketDisconnect,
     WebSocketException,
 )
-from typing import Set, Any, Dict, Optional,Callable
+from typing import Set, Any, Dict, Optional, Callable
 
 from app.services import viseme_service
 from app.services import video_service
@@ -20,7 +21,7 @@ from app.services.viseme_service import VisemeService
 from app.services.video_service import VideoService
 from app.services.monitoring_service import ConnectionMonitor
 from app.services.gcloud_service import GcloudService
-from app.core.config import OPENAI_API_KEY
+from app.core.config import OPENAI_API_KEY, Config
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -57,17 +58,25 @@ class ConnectionManager:
         """Send a message to all active WebSocket connections."""
         for connection in self.active_connections:
             await connection.send_text(message)
-    
-    async def check_connection(self,websocket:WebSocket,callback:Optional[Callable] = None,):
+
+    async def check_connection(
+        self,
+        websocket: WebSocket,
+        callback: Optional[Callable] = None,
+    ):
         while True:
-            if hasattr(websocket, "client_state") and websocket.client_state.name != "CONNECTED":
-                logger.info(f"WebSocket client state is {websocket.client_state.name}, removing connection")
+            if (
+                hasattr(websocket, "client_state")
+                and websocket.client_state.name != "CONNECTED"
+            ):
+                logger.info(
+                    f"WebSocket client state is {websocket.client_state.name}, removing connection"
+                )
                 self.disconnect(websocket)
                 if callback:
                     await callback()
                 break
             await asyncio.sleep(1)
-            
 
 
 class OpenAIStreamHandler:
@@ -406,8 +415,10 @@ def register_connection_monitor(app: FastAPI):
         logger.info("Connection monitor stopped")
 
 
-@router.websocket("/ws/avatar/{token}")
-async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
+@router.websocket("/ws/avatar/{model_id}/{token}")
+async def websocket_endpoint(
+    websocket: WebSocket, token: str, model_id: int = 306
+) -> None:
     """WebSocket endpoint for real-time communication."""
     session_id = ""
     try:
@@ -432,10 +443,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
         await manager.connect(websocket)
         await connection_monitor.connection_state_changed()
         viseme_service = VisemeService()
-        video_service = VideoService()
+        config = Config(
+            point_path=Path(f"models/{model_id}/point_cloud.ply"),
+            save_folder=Path("output_frames"),
+            fps=45,
+            demo_mode=True,
+        )
+        video_service = VideoService(config=config)
         if video_service.cam is None:
             video_service.cam = video_service.viewer.prepare_camera()
-            asyncio.create_task(video_service.generate_gif(websocket))
+            asyncio.create_task(video_service.generate_gif(model_id, websocket))
         async with openai_service.client.beta.realtime.connect(
             model="gpt-4o-realtime-preview"
         ) as openai_connection:
@@ -450,7 +467,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
             )
             send_task = asyncio.create_task(handler.send_to_client(openai_connection))
             handler.tasks.extend([receive_task, send_task])
-            asyncio.create_task(manager.check_connection(websocket,connection_monitor.connection_state_changed))
+            asyncio.create_task(
+                manager.check_connection(
+                    websocket, connection_monitor.connection_state_changed
+                )
+            )
             await asyncio.gather(receive_task, send_task)
 
     except WebSocketDisconnect:

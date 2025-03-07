@@ -12,7 +12,7 @@ class ConnectionMonitor:
     def __init__(
         self,
         connection_manager,
-        inactivity_timeout: int = 60,
+        inactivity_timeout: int = 180,
         stop_callback: Optional[Callable] = None,
     ):
         """Initialize the connection monitor.

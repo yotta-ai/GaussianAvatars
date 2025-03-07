@@ -14,7 +14,7 @@ from PIL import Image
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, Optional
 
-from app.core.config import config, settings
+from app.core.config import settings
 from app.core.constants import (
     REQUIRED_FRAMES_FOR_PLAYBACK,
     FRAME_MESSAGE,
@@ -30,7 +30,7 @@ from gaussian_renderer import render
 class VideoService:
     """Handles video frame generation and streaming."""
 
-    def __init__(self):
+    def __init__(self, config):
         self.cfg = config
         self.viewer = LocalViewer(self.cfg)
         self.visemes = []
@@ -260,11 +260,11 @@ class VideoService:
             random_frames = json.load(file)
         return random_frames
 
-    async def generate_gif(self, websocket: WebSocket):
+    async def generate_gif(self,model_id, websocket: WebSocket):
         """ "Generate Gif of the currently loaded avatar"""
 
-        gif_filename = "idle_avatar.gif"
-        gif_file_path = os.path.join(settings.BASE_DIR,"static", gif_filename)
+        gif_filename = f"idle_avatar_{model_id}.gif"
+        gif_file_path = os.path.join(settings.BASE_DIR, "static", gif_filename)
         if os.path.exists(gif_file_path):
             print(f"File {gif_filename} already exists")
             await websocket.send_json(

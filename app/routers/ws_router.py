@@ -12,8 +12,6 @@ from app.services.video_service import VideoService
 
 router = APIRouter()
 lifeguru_service = LifeGuruService()
-viseme_service = VisemeService()
-video_generator = VideoService()
 
 
 @router.websocket("/ws/test/{token}")
@@ -32,6 +30,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             }
         )
         return
+    viseme_service = VisemeService()
+    video_generator = VideoService()
     # Start continuous frame generation and sending in the background
     if video_generator.cam is None:
         video_generator.cam = video_generator.viewer.prepare_camera()
