@@ -133,23 +133,25 @@ class OpenAIService:
         }
         await conn.session.update(session=payload)
 
-    async def initialize_session(self, conn: AsyncRealtimeConnection):
+    async def initialize_session(
+        self, conn: AsyncRealtimeConnection, output_audio: bool = False
+    ):
         """
         Initialize the session with OpenAI with the specified settings.
 
         :param conn: The OpenAI realtime connection
         """
-        await conn.session.update(
-            session={
-                "turn_detection": {"type": "server_vad"},
-                "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
-                "instructions": self.system_message,
-                "modalities": ["text"],
-                "temperature": 0.8,
-                "input_audio_transcription": {"model": "whisper-1"},
-            }
-        )
+        session = {
+            "turn_detection": {"type": "server_vad"},
+            "input_audio_format": "pcm16",
+            "output_audio_format": "pcm16",
+            "instructions": self.system_message,
+            "modalities": ["text"],
+            "temperature": 0.8,
+            "input_audio_transcription": {"model": "whisper-1"},
+        }
+        session["modalities"].append("audio") if output_audio else None
+        await conn.session.update(session=session)
         await self.send_initial_conversation_item(conn)
 
     def handle_conversation_event(self, event: openai_event_type.RealtimeServerEvent):

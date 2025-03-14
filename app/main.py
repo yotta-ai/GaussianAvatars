@@ -1,7 +1,7 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import ws_router, avatar, static
+from app.routers import ws_router, avatar, static, chat
 from app.routers.avatar import register_connection_monitor
 
 app = FastAPI(title="Lipsync Video Server")
@@ -18,6 +18,7 @@ app.add_middleware(
 app.include_router(ws_router.router)
 app.include_router(avatar.router)
 app.include_router(static.router)
+app.include_router(chat.router)
 register_connection_monitor(app)
 
 
