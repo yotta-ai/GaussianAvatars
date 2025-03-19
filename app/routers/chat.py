@@ -316,7 +316,7 @@ manager = ConnectionManager()
 gcloud_service = GcloudService()
 connection_monitor = ConnectionMonitor(
     connection_manager=manager,
-    inactivity_timeout=30,
+    inactivity_timeout=180,
     stop_callback=gcloud_service.stop_instance,
 )
 
