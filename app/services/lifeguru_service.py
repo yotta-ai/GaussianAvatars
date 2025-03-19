@@ -96,7 +96,7 @@ class LifeGuruService:
         self, token: str, session_id: str, user_message: str, assistant_message: str
     ) -> bool:
         message_obj = {
-            "session_id": session_id,
+            "sessionId": session_id,
             "user_message": user_message or "",
             "assistant_message": assistant_message or "",
         }
