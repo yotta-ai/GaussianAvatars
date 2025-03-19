@@ -15,6 +15,7 @@ from typing import Set, Any, Dict, Optional, Callable
 from app.services import viseme_service
 from app.services import video_service
 from app.services import gcloud_service
+from app.services import lifeguru_service
 from app.services.openai_service import OpenAIService, AsyncRealtimeConnection
 from app.services.lifeguru_service import LifeGuruService
 from app.services.viseme_service import VisemeService
@@ -63,6 +64,8 @@ class ConnectionManager:
         self,
         websocket: WebSocket,
         callback: Optional[Callable] = None,
+        session_id=None,
+        token=None,
     ):
         while True:
             if (
@@ -73,6 +76,8 @@ class ConnectionManager:
                     f"WebSocket client state is {websocket.client_state.name}, removing connection"
                 )
                 self.disconnect(websocket)
+                logger.info("WebSocket disconnected for session_id=%s", session_id)
+                await LifeGuruService().end_session(session_id=session_id, token=token)
                 if callback:
                     await callback()
                 break
@@ -486,7 +491,10 @@ async def websocket_endpoint(
             handler.tasks.extend([receive_task, send_task])
             asyncio.create_task(
                 manager.check_connection(
-                    websocket, connection_monitor.connection_state_changed
+                    websocket,
+                    connection_monitor.connection_state_changed,
+                    session_id,
+                    token,
                 )
             )
             await asyncio.gather(receive_task, send_task)
@@ -495,7 +503,11 @@ async def websocket_endpoint(
         manager.disconnect(websocket)
         await connection_monitor.connection_state_changed()
         logger.info("WebSocket disconnected for session_id=%s", session_id)
+        await LifeGuruService().end_session(session_id=session_id, token=token)
+        logger.info("WebSocket disconnected for session_id=%s", session_id)
     except Exception as e:
         manager.disconnect(websocket)
         await connection_monitor.connection_state_changed()
+        logger.info("WebSocket disconnected for session_id=%s", session_id)
+        await LifeGuruService().end_session(session_id=session_id, token=token)
         logger.error("Unexpected error in websocket_endpoint: %s", e)

@@ -125,6 +125,35 @@ class LifeGuruService:
             print(f"Error saving message to backend: {str(error)}")
             return False
 
+    async def end_session(self, token: str, session_id: str) -> bool:
+        message_obj = {
+            "sessionId": session_id,
+        }
+        url = f"{self.api_url}/EndSession"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            # Using httpx.AsyncClient for async request
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=message_obj)
+
+                # Check if request was successful (status codes 200-299)
+                if not (200 <= response.status_code < 300):
+                    print(
+                        f"Failed to save message: {response.status_code} - {response.text}"
+                    )
+                    return False
+
+                print("Session ended  successfully:", message_obj)
+                return True
+
+        except Exception as error:
+            print(f"Error ending session: {str(error)}")
+            return False
+
     async def schedule_google_calendar_event(
         self, event_description: str, token: str
     ) -> dict:
