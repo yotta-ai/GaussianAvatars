@@ -188,7 +188,9 @@ class OpenAIStreamHandler:
         """Process the text to generate visemes and stream frames asynchronously."""
         try:
             # Generate visemes and audio
-            response_data = self.viseme_service.generate_visemes_and_audio(text,self.model_id)
+            response_data = self.viseme_service.generate_visemes_and_audio(
+                text, self.model_id
+            )
 
             # Check if the task should be cancelled
             if self.should_cancel_frame_generation:
@@ -415,6 +417,17 @@ def register_connection_monitor(app: FastAPI):
     async def shutdown_event():
         connection_monitor.stop_monitoring()
         logger.info("Connection monitor stopped")
+
+
+@router.post("/increase-timeout")
+async def increase_idle_timeout():
+    """Increase the idle timeout for the connection monitor."""
+    if connection_monitor.timer_task:
+        connection_monitor.timer_task.cancel()
+    if not connection_monitor.has_active_connections():
+        connection_monitor.timer_task = asyncio.create_task(
+            connection_monitor._timer_countdown()
+        )
 
 
 @router.websocket("/ws/avatar/{model_id}/{token}")

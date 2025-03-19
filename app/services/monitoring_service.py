@@ -51,6 +51,7 @@ class ConnectionMonitor:
                     return
 
                 # Wait before checking again (1 second intervals)
+                print("Time Elapsed:", time.time() - countdown_start)
                 await asyncio.sleep(1)
 
             # Timeout reached with no connections
@@ -95,3 +96,4 @@ class ConnectionMonitor:
         # If we have no active connections, start the timer
         elif not self.timer_task or self.timer_task.done():
             self.timer_task = asyncio.create_task(self._timer_countdown())
+
