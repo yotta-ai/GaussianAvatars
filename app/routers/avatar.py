@@ -438,11 +438,16 @@ async def increase_idle_timeout():
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-
+    is_timer_running = (
+        connection_monitor.timer_task is not None
+        and not connection_monitor.timer_task.done()
+    )
     return {
         "status": "ok",
         "connections_count": len(manager.active_connections),
-        "timer_running": connection_monitor.is_running,
+        "monitoring_running": connection_monitor.is_running,
+        "timer_running": is_timer_running,
+        "idle_time_passed": connection_monitor.idle_time_passed,
     }
 
 

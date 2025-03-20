@@ -27,6 +27,7 @@ class ConnectionMonitor:
         self.stop_callback = stop_callback
         self.timer_task: Optional[asyncio.Task] = None
         self.is_running = False
+        self.idle_time_passed = None
 
     def has_active_connections(self) -> bool:
         """Check if there are any active WebSocket connections.
@@ -51,6 +52,7 @@ class ConnectionMonitor:
                     return
 
                 # Wait before checking again (1 second intervals)
+                self.idle_time_passed = time.time() - countdown_start
                 print("Time Elapsed:", time.time() - countdown_start)
                 await asyncio.sleep(1)
 
@@ -93,6 +95,7 @@ class ConnectionMonitor:
             if self.timer_task and not self.timer_task.done():
                 self.timer_task.cancel()
                 self.timer_task = None
+                self.idle_time_passed = None
         # If we have no active connections, start the timer
         elif not self.timer_task or self.timer_task.done():
             self.timer_task = asyncio.create_task(self._timer_countdown())
