@@ -435,6 +435,17 @@ async def increase_idle_timeout():
         )
 
 
+@router.get("/health")
+async def health_check():
+    """Health check endpoint."""
+
+    return {
+        "status": "ok",
+        "connections_count": len(manager.active_connections),
+        "timer_running": connection_monitor.is_running,
+    }
+
+
 @router.websocket("/ws/avatar/{model_id}/{token}")
 async def websocket_endpoint(
     websocket: WebSocket, token: str, model_id: int = 306
