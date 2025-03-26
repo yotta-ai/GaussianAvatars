@@ -43,13 +43,33 @@ class ConnectionManager:
             "WebSocket connected. Active connections: %d", len(self.active_connections)
         )
 
+    # def disconnect(self, websocket: WebSocket) -> None:
+    #     """Remove a WebSocket connection."""
+    #     self.active_connections.discard(websocket)
+    #     logger.info(
+    #         "WebSocket disconnected. Active connections: %d",
+    #         len(self.active_connections),
+    #     )
+
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
-        self.active_connections.discard(websocket)
-        logger.info(
-            "WebSocket disconnected. Active connections: %d",
-            len(self.active_connections),
-        )
+        try:
+            # Try to close the connection if it's not already closed
+            if (
+                hasattr(websocket, "client_state")
+                and websocket.client_state.name == "CONNECTED"
+            ):
+                asyncio.create_task(websocket.close(code=1000))
+        except Exception:
+            # Connection might already be closed
+            pass
+        finally:
+            # Remove from active connections
+            self.active_connections.discard(websocket)
+            logger.info(
+                "WebSocket disconnected. Active connections: %d",
+                len(self.active_connections),
+            )
 
     async def send_message(self, message: str, websocket: WebSocket) -> None:
         """Send a message to a specific WebSocket connection."""
@@ -60,6 +80,29 @@ class ConnectionManager:
         for connection in self.active_connections:
             await connection.send_text(message)
 
+    # async def check_connection(
+    #     self,
+    #     websocket: WebSocket,
+    #     callback: Optional[Callable] = None,
+    #     session_id=None,
+    #     token=None,
+    # ):
+    #     while True:
+    #         if (
+    #             hasattr(websocket, "client_state")
+    #             and websocket.client_state.name != "CONNECTED"
+    #         ):
+    #             logger.info(
+    #                 f"WebSocket client state is {websocket.client_state.name}, removing connection"
+    #             )
+    #             self.disconnect(websocket)
+    #             logger.info("WebSocket disconnected for session_id=%s", session_id)
+    #             await LifeGuruService().end_session(session_id=session_id, token=token)
+    #             if callback:
+    #                 await callback()
+    #             break
+    #         await asyncio.sleep(1)
+
     async def check_connection(
         self,
         websocket: WebSocket,
@@ -68,20 +111,21 @@ class ConnectionManager:
         token=None,
     ):
         while True:
-            if (
-                hasattr(websocket, "client_state")
-                and websocket.client_state.name != "CONNECTED"
-            ):
-                logger.info(
-                    f"WebSocket client state is {websocket.client_state.name}, removing connection"
-                )
+            try:
+                # Send a ping message to check if connection is still alive
+                await websocket.send_json({"type": "ping"})
+                await asyncio.sleep(5)  # Check every 5 seconds
+            except (WebSocketDisconnect, RuntimeError, ConnectionError) as e:
+                logger.info(f"WebSocket disconnected during ping: {e}")
                 self.disconnect(websocket)
                 logger.info("WebSocket disconnected for session_id=%s", session_id)
-                await LifeGuruService().end_session(session_id=session_id, token=token)
+                if session_id and token:
+                    await LifeGuruService().end_session(
+                        session_id=session_id, token=token
+                    )
                 if callback:
                     await callback()
                 break
-            await asyncio.sleep(1)
 
 
 class OpenAIStreamHandler:
@@ -125,6 +169,8 @@ class OpenAIStreamHandler:
                 elif event_type == "text":
                     print(data)
                     await self._handle_text_event(data, openai_connection)
+                elif event_type == "pong":
+                    logger.info("Received pong from client")
         except WebSocketDisconnect:
             logger.info("Client disconnected (receive_from_client).")
         except Exception as e:
