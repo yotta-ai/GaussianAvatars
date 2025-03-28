@@ -61,7 +61,8 @@ class VideoService:
             self.is_streaming = True
 
             if self.visemes:
-                self.total_duration = max(v["time"] for v in self.visemes) / 1000.0
+                self.total_duration = max(v["time"] for v in self.visemes) 
+                # self.total_duration = max(v["time"] for v in self.visemes) / 1000.0
                 print(f"Total duration: {self.total_duration} seconds")
 
             # Initialize camera if not already done
@@ -139,7 +140,8 @@ class VideoService:
             img.save(buffer, format="JPEG", quality=85)
             frame_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            timestamp = frame_param_dict["time"] / 1000.0
+            # timestamp = frame_param_dict["time"] / 1000.0
+            timestamp = frame_param_dict["time"] 
 
             return {
                 "frame": frame_base64,

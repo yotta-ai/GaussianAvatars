@@ -29,6 +29,9 @@ class Settings(BaseModel):
     GCLOUD_AVATAR_INSTANCE_NAME: str = env_config("GCLOUD_AVATAR_INSTANCE_NAME")
     GCLOUD_AVATAR_INSTANCE_ZONE: str = env_config("GCLOUD_AVATAR_INSTANCE_ZONE")
 
+    ELEVENLABS_API_KEY:str = env_config("ELEVENLABS_API_KEY")
+    DEEPTALK_API_URL: str = env_config("DEEPTALK_API_URL")
+
 
 @dataclass
 class PipelineConfig:

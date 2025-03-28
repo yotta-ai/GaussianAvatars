@@ -22,6 +22,9 @@ from app.services.viseme_service import VisemeService
 from app.services.video_service import VideoService
 from app.services.monitoring_service import ConnectionMonitor
 from app.services.gcloud_service import GcloudService
+from app.services.elevenlabs_service import ElevenLabsService
+from app.services.deeptalk_service import DEEPTalkService
+from app.services.aws_service import AWSService
 from app.core.config import OPENAI_API_KEY, Config
 from app.logger import setup_logger
 
@@ -150,6 +153,9 @@ class OpenAIStreamHandler:
         self.tasks = []
         self.viseme_service: VisemeService = None
         self.video_service: VideoService = None
+        self.elevenlabs_service: ElevenLabsService = ElevenLabsService()
+        self.deeptalk_service: DEEPTalkService = DEEPTalkService()
+        self.aws_service: AWSService = AWSService()
 
         self.frame_generation_task: Optional[asyncio.Task] = None
         self.should_cancel_frame_generation = False
@@ -210,8 +216,13 @@ class OpenAIStreamHandler:
 
                     # Start a new frame generation task asynchronously
                     self.should_cancel_frame_generation = False
+                    # self.frame_generation_task = asyncio.create_task(
+                    #     self._process_and_stream_frames(
+                    #         self.openai_service.last_assistant_message.text
+                    #     )
+                    # )
                     self.frame_generation_task = asyncio.create_task(
-                        self._process_and_stream_frames(
+                        self._process_and_stream_frames_v2(
                             self.openai_service.last_assistant_message.text
                         )
                     )
@@ -234,6 +245,34 @@ class OpenAIStreamHandler:
                 # Optionally handle other event types here
         except Exception as e:
             logger.error("Error in send_to_client: %s", e)
+
+    async def _process_and_stream_frames_v2(self, text: str) -> None:
+        try:
+            # audio_content = self.elevenlabs_service.tts(text)
+            audio_content = self.aws_service.tts(text=text, model_id=self.model_id)
+            # Check if the task should be cancelled
+            if self.should_cancel_frame_generation:
+                logger.info("Frame generation cancelled before processing visemes")
+                return
+            flame_params = await self.deeptalk_service.get_flame_params(audio_content)
+            logger.info("Flame params length: %d", len(flame_params))
+            # Check if the task should be cancelled
+            if self.should_cancel_frame_generation:
+                logger.info("Frame generation cancelled before processing visemes")
+                return
+
+            base64_audio = self.elevenlabs_service.wav_to_base64(audio_content)
+            self.video_service.set_visemes_and_audio(flame_params, base64_audio)
+
+            if self.should_cancel_frame_generation:
+                logger.info("Frame generation cancelled before streaming")
+                return
+
+            await self.video_service.stream_video(self.websocket)
+
+        except Exception as e:
+            logger.error(f"Error in Eleven Labs TTS: {e}")
+            return
 
     async def _process_and_stream_frames(self, text: str) -> None:
         """Process the text to generate visemes and stream frames asynchronously."""
